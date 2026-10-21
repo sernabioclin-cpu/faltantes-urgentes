@@ -66,7 +66,10 @@ body{overflow-x:hidden}
 .etq.mc{background:var(--verde-claro);color:var(--verde)}
 .etq.ya{background:var(--guinda-claro);color:var(--guinda)}
 .desc{font-size:14px;margin-top:3px;color:var(--tinta);overflow-wrap:anywhere}
-.desc.corta{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.desc.corta{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.desc.corta::after{content:''}
+.it .desc{cursor:pointer}
+.res .desc{line-height:1.45}
 mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 1px}
 .agregar{flex:0 0 auto;border:0;background:var(--guinda-2);color:#fff;font-weight:700;border-radius:10px;padding:11px 14px;font-size:14px;min-width:96px}
 .agregar:active{transform:scale(.97)}
@@ -399,7 +402,7 @@ function filaResultado(r, toks, ya){
   const yaTxt = ya.has(r[0]) ? `<span class="etq ya">Ya reportada en este corte</span>` : '';
   const der = enCarrito ? `<div class="agregado"><small>✓ En tu reporte</small>${stepper(r[0], enCarrito.cantidad)}</div>`
                         : `<button class="agregar" type="button" data-add="${r[0]}">＋ Agregar</button>`;
-  return `<li class="res" data-c="${r[0]}"><div class="txt"><span class="clave">${resaltar(r[0], toks)}</span>${etiquetaTipo(r[2])}${yaTxt}<div class="desc corta">${resaltar(r[1], toks)}</div></div>${der}</li>`;
+  return `<li class="res" data-c="${r[0]}"><div class="txt"><span class="clave">${resaltar(r[0], toks)}</span>${etiquetaTipo(r[2])}${yaTxt}<div class="desc">${resaltar(r[1], toks)}</div></div>${der}</li>`;
 }
 function stepper(clave, val){
   return `<div class="stepper" data-st="${clave}"><button type="button" data-menos="${clave}" aria-label="Menos">−</button><input type="number" inputmode="numeric" min="1" step="1" value="${esc(val)}" data-cant="${clave}" aria-label="Cantidad"><button type="button" data-mas="${clave}" aria-label="Más">+</button></div>`;
@@ -441,7 +444,7 @@ function pintarCarrito(){
   $('carritoSub').textContent = n ? 'Revisa cantidades y toca «Enviar reporte».' : 'Agrega las claves que te faltan con urgencia.';
   $('lista').innerHTML = carrito.map(it => {
     const r = POR_CLAVE.get(it.clave) || [it.clave, '', '', 0];
-    return `<li class="it"><div class="fila"><div class="txt"><span class="clave">${esc(r[0])}</span>${etiquetaTipo(r[2])}<div class="desc corta">${esc(r[1])}</div></div><button class="quitar" type="button" data-quitar="${esc(it.clave)}" aria-label="Quitar">×</button></div>
+    return `<li class="it"><div class="fila"><div class="txt"><span class="clave">${esc(r[0])}</span>${etiquetaTipo(r[2])}<div class="desc corta" title="Toca para ver completo / ocultar">${esc(r[1])}</div></div><button class="quitar" type="button" data-quitar="${esc(it.clave)}" aria-label="Quitar">×</button></div>
       <div class="ctrl">${stepper(it.clave, it.cantidad)}<button class="lnk" type="button" data-vernota="${esc(it.clave)}">${it.nota ? 'Editar nota' : '＋ Nota (opcional)'}</button></div>
       <input class="nota ${it.nota ? '' : 'oculto'}" maxlength="200" placeholder="Ej.: paciente en quirófano, se necesita antes de las 10:00" data-nota="${esc(it.clave)}" value="${esc(it.nota)}"></li>`;
   }).join('');
@@ -454,6 +457,7 @@ function validar(){
   return malos;
 }
 document.addEventListener('click', e => {
+  const dd = e.target.closest('.it .desc'); if (dd){ dd.classList.toggle('corta'); return; }
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.add) agregar(t.dataset.add);
   else if (t.dataset.mas){ const it = carrito.find(x => x.clave === t.dataset.mas); setCant(t.dataset.mas, (Number(it.cantidad)||0) + 1); }
