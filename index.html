@@ -366,7 +366,8 @@ footer button{border:0;background:none;color:var(--gris);text-decoration:underli
       <label for="ofCcp">Con copia (una por renglón)</label><textarea id="ofCcp" rows="3" maxlength="600"></textarea>
     </details>
     <div id="ofMsg" class="msg oculto"></div>
-    <button class="btn" type="submit" id="ofGen">⬇ Descargar oficio (.docx)</button>
+    <p class="ayuda" style="margin-top:14px">El Word se descarga <b>solo</b> al tocar el botón. Si vuelves a descargar el oficio de este mismo reporte, el registro anterior se reemplaza (no se duplica).</p>
+    <button class="btn" type="button" id="ofGen">⬇ Descargar oficio (.docx)</button>
     <button class="btn sec" type="button" id="ofCerrar">Cerrar</button>
   </form>
 </div>
@@ -703,7 +704,7 @@ function abrirOficio(folio){
   $('ofDir').value = TITULARES.director[0]; $('ofDirC').value = TITULARES.director[1];
   $('ofAt').value = TITULARES.atencion[0]; $('ofAtC').value = TITULARES.atencion[1];
   $('ofCcp').value = TITULARES.ccp.join('\n');
-  oficioActual = {folio, filas: fuera.map(i => { const r = POR_CLAVE.get(i.clave) || [i.clave, '']; return {clave:i.clave, descripcion:r[1], cantidad:i.cantidad, unidad:unidadDe(i.clave), incl:true}; })};
+  oficioActual = {folio, control: h.oficio || '', cuerpoAuto: $('ofCuerpo').value, filas: fuera.map(i => { const r = POR_CLAVE.get(i.clave) || [i.clave, '']; return {clave:i.clave, descripcion:r[1], cantidad:i.cantidad, unidad:unidadDe(i.clave), incl:true}; })};
   pintarTablaOficio();
   $('ofMsg').classList.add('oculto');
   $('mOf').classList.remove('oculto');
@@ -787,14 +788,19 @@ function descargar(blob, nombre){
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 }
-$('fOf').addEventListener('submit', async e => {
-  e.preventDefault(); if (!oficioActual) return;
+$('fOf').addEventListener('submit', e => e.preventDefault());   // Enter en un campo ya no descarga el oficio
+$('fOf').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); });
+$('ofJef').addEventListener('input', () => { if (oficioActual && $('ofCuerpo').value === oficioActual.cuerpoAuto){ oficioActual.cuerpoAuto = cuerpoDefault($('ofJef').value.trim()); $('ofCuerpo').value = oficioActual.cuerpoAuto; } });
+$('ofGen').addEventListener('click', async () => {
+  if (!oficioActual || $('ofGen').disabled) return;
+  const req = ['ofJef','ofFirma','ofCargo','ofAsunto'].find(id => !$(id).value.trim());
+  if (req){ ofMsg('Completa los campos obligatorios antes de descargar.', 'err'); $(req).focus(); return; }
   const filas = oficioActual.filas.filter(f => f.incl);
   if (!filas.length){ ofMsg('Selecciona al menos una clave.', 'err'); return; }
   if (filas.some(f => !(Number(f.cantidad) > 0))){ ofMsg('Revisa las cantidades: deben ser mayores a cero.', 'err'); return; }
   const ahora = new Date();
   const o = {
-    folioOficio: 'OF-' + folioNuevo(), folioReporte: oficioActual.folio,
+    folioOficio: oficioActual.control || ('OF-' + folioNuevo()), folioReporte: oficioActual.folio,
     jefatura: $('ofJef').value.trim(), numero: $('ofNum').value.trim(), firma: $('ofFirma').value.trim(), cargo: $('ofCargo').value.trim(),
     asunto: $('ofAsunto').value.trim(), cuerpo: $('ofCuerpo').value.trim(),
     dirigido: $('ofDir').value.trim(), dirigidoCargo: $('ofDirC').value.trim(), atencion: $('ofAt').value.trim(), atencionCargo: $('ofAtC').value.trim(),
@@ -808,9 +814,10 @@ $('fOf').addEventListener('submit', async e => {
     descargar(blob, `Oficio_${o.jefatura.replace(/[^0-9A-Za-zÁÉÍÓÚÑáéíóúñ]+/g,'_')}_${o.folioOficio}.docx`);
     store.set('firmante', {servicio:o.jefatura, firma:o.firma, cargo:o.cargo});
     const h = historial.find(x => x.folio === o.folioReporte); if (h){ h.oficio = o.folioOficio; store.set('historial', historial); }
+    oficioActual.control = o.folioOficio;
     const pay = {tipo:'oficio', folioOficio:o.folioOficio, folioReporte:o.folioReporte, servicio:o.jefatura, jefe: usuario ? usuario.nombre : '',
       firmante:o.firma, cargo:o.cargo, numero:o.numero, asunto:o.asunto, dirigido:o.dirigido, atencion:o.atencion, items:o.filas};
-    try { await postear(pay); ofMsg(`✓ Oficio <b>${esc(o.folioOficio)}</b> descargado y registrado. Imprímelo, fírmalo y entrégalo en la Dirección.`, 'ok'); }
+    try { const j = await postear(pay); ofMsg(`✓ Oficio <b>${esc(o.folioOficio)}</b> descargado y ${j.reemplazado ? '<b>actualizado</b> (reemplazó la versión anterior)' : 'registrado'}. Imprímelo, fírmalo y entrégalo en la Dirección.`, 'ok'); }
     catch (err) { oficiosPend.push(pay); store.set('oficiosPend', oficiosPend); ofMsg(`✓ Oficio <b>${esc(o.folioOficio)}</b> descargado. El registro se enviará en cuanto haya conexión.`, 'ok'); }
     pintarHistorial();
   } catch (err) { ofMsg('No se pudo generar el oficio: ' + esc(err.message), 'err'); }
